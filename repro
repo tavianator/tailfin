@@ -1,0 +1,376 @@
+#!/usr/bin/env bash
+
+set -eu
+
+## Constants
+
+# sysexits(3)
+EX_USAGE=64
+EX_DATAERR=65
+EX_SOFTWARE=70
+EX_CANTCREAT=73
+
+# The current platform (kernel)
+UNAME=$(uname)
+
+## Colors
+
+# dup() stdout so we can check if it's a TTY
+_colors() {
+    exec 3>&1
+}
+
+_tput() {
+    if [ -t 3 ]; then
+        tput "$@" 2>/dev/null || :
+    fi
+}
+
+_bold()    { _tput bold; printf '%s' "$*"; _tput sgr0; }
+_red()     { _tput bold; _tput setaf 1; printf '%s' "$*"; _tput sgr0; }
+_green()   { _tput bold; _tput setaf 2; printf '%s' "$*"; _tput sgr0; }
+_yellow()  { _tput bold; _tput setaf 3; printf '%s' "$*"; _tput sgr0; }
+_blue()    { _tput bold; _tput setaf 4; printf '%s' "$*"; _tput sgr0; }
+_magenta() { _tput bold; _tput setaf 5; printf '%s' "$*"; _tput sgr0; }
+_cyan()    { _tput bold; _tput setaf 6; printf '%s' "$*"; _tput sgr0; }
+
+# Color an option like -o ARG
+_opt() {
+    _blue "$1"
+    if (($# > 1)); then
+        printf ' '
+        _bold "$2"
+    fi
+}
+
+## Command line parsing
+
+_help() (
+    _cmd=$(basename -- "$0")
+    _colors
+    cat <<EOF
+Usage: $(_green "$_cmd") [$(_opt -d DIR)] [$(_opt -r RUNS)] [$(_opt -u USER)] [$(_opt -q)] [$(_opt -h)] $(_bold SCRIPT)
+
+  $(_opt -d DIR)
+      Set the directory for results and logs (default: $(_bold ./results)).  The current
+      date and time will be appended to this path to distinguish runs.
+
+  $(_opt -r RUNS)
+      Run the benchmark this many times (default: $(_bold 1)).
+
+  $(_opt -u USER)
+      Run the benchmark as this user.  The default depends on the user who
+      invoked $_cmd:
+
+          $(_bold user)@host$ $(_green "$_cmd") ...      # default: $(_bold user)
+          $(_bold user)@host$ $(_green sudo "$_cmd") ... # default: $(_bold user)
+          $(_red  root)@host# $(_green "$_cmd") ...      # default: $(_red  root)
+
+  $(_opt -q)
+      Be quiet, don't show benchmark output.
+
+  $(_opt -h)
+      This help message.
+
+  $(_bold SCRIPT)
+      The benchmark script to invoke.
+EOF
+)
+
+_args=("$0" "$@")
+_dir=./results
+_runs=1
+_user=
+_quiet=
+_bench=
+
+while getopts 'd:r:u:qxh' opt; do
+    case "$opt" in
+        d)
+            _dir="$OPTARG"
+            ;;
+        r)
+            _runs="$OPTARG"
+            ;;
+        u)
+            _user="$OPTARG"
+            ;;
+        q)
+            _quiet=1
+            ;;
+        x)
+            _bench=1
+            ;;
+        h)
+            _help
+            exit
+            ;;
+        *)
+            _help >&2
+            exit $EX_USAGE
+            ;;
+    esac
+done
+
+# The default user is the current user, before sudo if used
+if [ -z "$_user" ] && [ -n "${SUDO_USER:-}" ]; then
+    _user="$SUDO_USER"
+fi
+
+shift $((OPTIND - 1))
+if (($# != 1)); then
+    _help >&2
+    exit $EX_USAGE
+fi
+_script="$1"
+
+# Get the absolute path to the script, since we'll chdir()
+_repro=$(realpath -- "$0")
+_script=$(realpath -- "$_script")
+
+## Utility functions
+
+# Check if a command exists
+is_command() {
+    command -v "$1" >/dev/null
+}
+
+# Check if a function is defined
+is_function() {
+    test "$(type -t "$1")" = function
+}
+
+# Exit with an error and message
+_die() {
+    _exit="$1"
+    shift 1
+    {
+        printf '%s: ' "$0"
+        printf "$@"
+        printf '\n'
+    } >&2
+    exit "$_exit"
+}
+
+# Run a command as $_user
+_asuser() {
+    if [ "$_user" ]; then
+        sudo -u "$_user" -- "$@"
+    else
+        "$@"
+    fi
+}
+
+# Redirect standard output/error to a log file
+_redirect() {
+    _out="$1"
+    _err="$2"
+    shift 2
+
+    # Don't make the logs owned by root
+    _asuser touch "$_out"
+    _asuser touch "$_err"
+
+    if [ "$_quiet" ]; then
+        "$@" >"$_out" 2>"$_err"
+    else
+        "$@" > >(tee "$_out") 2> >(tee "$_err" >&2)
+    fi
+}
+
+_atexit_cmds=()
+
+# Register a command to run when the script exits
+atexit() {
+    # Check if the EXIT trap is set, since atexit won't work otherwise
+    trap -- KILL
+    if trap -p EXIT | grep _run_atexit &>/dev/null; then
+        _atexit_cmds+=("$(printf '%q ' "$@")")
+    else
+        _die $EX_SOFTWARE 'atexit used from subshell'
+    fi
+}
+
+# Paths to which to redirect the atexit handlers' output
+_atexit_out=
+_atexit_err=
+
+# Run the registered exit handlers
+_run_atexit() {
+    if [ "$_atexit_out" ] && [ "$_atexit_err" ]; then
+        _redirect "$_atexit_out" "$_atexit_err" exec
+    fi
+
+    # Run the handlers in the reverse order of installation
+    while ((${#_atexit_cmds[@]} > 0)); do
+        _cmd="${_atexit_cmds[-1]}"
+        unset '_atexit_cmds[-1]'
+        eval "$_cmd"
+    done
+}
+
+trap _run_atexit EXIT
+
+# Get a list of sysctls matching a glob pattern
+get_sysctls() {
+    for _ctl in $(sysctl -aN); do
+        if [[ "$_ctl" == $1 ]]; then
+            printf '%s\n' "$_ctl"
+        fi
+    done
+}
+
+# Set a sysctl for the duration of a benchmark
+set_sysctl() {
+    _prev=$(sysctl -n "$1")
+    sysctl "$1=$2"
+    atexit sysctl "$1=$_prev"
+}
+
+# Helper to write a string to a sysfs file
+_sysfs() {
+    printf '%s' "$3" >"$1"
+    printf '%s: %s -> %s\n' "$1" "$2" "$3"
+}
+
+# Set a sysfs value for the duration of a benchmark
+set_sysfs() {
+    _prev=$(cat "$1")
+    _sysfs "$1" "$_prev" "$2"
+    atexit _sysfs "$1" "$2" "$_prev"
+}
+
+# Exit with an unsupported platform error
+_idkhowto() {
+    _die $EX_SOFTWARE "I don't know how to %s on %s" "$*" "$UNAME"
+}
+
+# Turn turbo boost off for the duration of a benchmark
+turbo_off() {
+    case "$UNAME" in
+        Linux)
+            _intel_turbo=/sys/devices/system/cpu/intel_pstate/no_turbo
+            if [ -e "$_intel_turbo" ]; then
+                set_sysfs "$_intel_turbo" 1
+            else
+                set_sysfs /sys/devices/system/cpu/cpufreq/boost 0
+            fi
+            ;;
+
+        *)
+            _idkhowto disable turbo boost
+            ;;
+    esac
+}
+
+# Turn off SMT for the duration of a benchmark
+smt_off() {
+    case "$UNAME" in
+        Linux)
+            set_sysfs /sys/devices/system/cpu/smt/control off
+            return
+            ;;
+
+        FreeBSD)
+            _threads=$(sysctl -n kern.smp.threads_per_core)
+            if [ "$_threads" -eq 1 ]; then
+                return
+            fi
+            ;;
+    esac
+
+    _idkhowto turn SMT off
+}
+
+# Set the CPU(s) to maximum frequency for a benchmark
+cpu_freq_max() {
+    case "$UNAME" in
+        Linux)
+            # Set the CPU governor to performance
+            for _cpu in /sys/devices/system/cpu/cpu[0-9]*; do
+                _online="$_cpu/online"
+                if [ -e "$_online" ] && [ "$(cat "$_online")" != 1 ]; then
+                    continue
+                fi
+
+                _governor="$_cpu/cpufreq/scaling_governor"
+                if [ ! -e "$_governor" ]; then
+                    continue
+                fi
+                set_sysfs "$_governor" performance
+            done
+            ;;
+
+        FreeBSD)
+            # Set the Intel Energy/Performance Preference to 0 (performance)
+            # See intel_pstate(4)
+            for _ctl in $(get_sysctls 'dev.hwpstate_intel.*.epp'); do
+                set_sysctl "$_ctl" 0
+            done
+            ;;
+    esac
+}
+
+## If we invoked ourselves with -x, directly run the script's bench() function
+
+if [ "$_bench" ]; then
+    . "$_script"
+    bench
+    exit $?
+fi
+
+## Set up the working directory
+
+_dir="$_dir/$(date '+%Y/%m/%d/%T')"
+
+if [ -e "$_dir" ]; then
+    _die $EX_CANTCREAT '"%s" already exists' "$_dir"
+fi
+
+_asuser mkdir -p "$_dir"
+cd "$_dir"
+
+_asuser mkdir -p setup teardown
+
+## Describe this benchmarking run
+
+_asuser touch info
+{
+    printf '%s\n\n' "${_args[*]}"
+
+    printf 'uname: '
+    uname -a
+    printf 'uptime: '
+    uptime
+    printf 'path: %s\n' "$PWD"
+    printf 'runs: %s\n' "$_runs"
+    printf 'user: %s\n' "$_user"
+    printf 'quiet: %s\n\n' "$_quiet"
+
+    printf 'env:\n'
+    env
+} >info
+
+## Load and run the script
+
+. "$_script"
+
+if ! is_function bench; then
+    _die $EX_DATAERR '%s does not define the function bench()' "$_script"
+fi
+
+# Make the EXIT trap output to the teardown log
+_atexit_out=$(realpath teardown/stdout)
+_atexit_err=$(realpath teardown/stderr)
+
+if is_function setup; then
+    _redirect setup/stdout setup/stderr setup
+fi
+
+for _run in $(seq -w "$_runs"); do
+    (
+        _asuser mkdir -p "runs/$_run"
+        cd "runs/$_run"
+        _redirect stdout stderr _asuser "$_repro" -x -- "$_script"
+    )
+done
