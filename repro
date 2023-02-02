@@ -13,66 +13,35 @@ EX_CANTCREAT=73
 # The current platform (kernel)
 UNAME=$(uname)
 
-## Colors
-
-# dup() stdout so we can check if it's a TTY
-_colors() {
-    exec 3>&1
-}
-
-_tput() {
-    if [ -t 3 ]; then
-        tput "$@" 2>/dev/null || :
-    fi
-}
-
-_bold()    { _tput bold; printf '%s' "$*"; _tput sgr0; }
-_red()     { _tput bold; _tput setaf 1; printf '%s' "$*"; _tput sgr0; }
-_green()   { _tput bold; _tput setaf 2; printf '%s' "$*"; _tput sgr0; }
-_yellow()  { _tput bold; _tput setaf 3; printf '%s' "$*"; _tput sgr0; }
-_blue()    { _tput bold; _tput setaf 4; printf '%s' "$*"; _tput sgr0; }
-_magenta() { _tput bold; _tput setaf 5; printf '%s' "$*"; _tput sgr0; }
-_cyan()    { _tput bold; _tput setaf 6; printf '%s' "$*"; _tput sgr0; }
-
-# Color an option like -o ARG
-_opt() {
-    _blue "$1"
-    if (($# > 1)); then
-        printf ' '
-        _bold "$2"
-    fi
-}
-
 ## Command line parsing
 
 _help() (
     _cmd=$(basename -- "$0")
-    _colors
     cat <<EOF
-Usage: $(_green "$_cmd") [$(_opt -d DIR)] [$(_opt -r RUNS)] [$(_opt -u USER)] [$(_opt -q)] [$(_opt -h)] $(_bold SCRIPT)
+Usage: $_cmd [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT
 
-  $(_opt -d DIR)
-      Set the directory for results and logs (default: $(_bold ./results)).  The current
+  -d DIR
+      Set the directory for results and logs (default: ./results).  The current
       date and time will be appended to this path to distinguish runs.
 
-  $(_opt -r RUNS)
-      Run the benchmark this many times (default: $(_bold 1)).
+  -r RUNS
+      Run the benchmark this many times (default: 1).
 
-  $(_opt -u USER)
+  -u USER
       Run the benchmark as this user.  The default depends on the user who
       invoked $_cmd:
 
-          $(_bold user)@host$ $(_green "$_cmd") ...      # default: $(_bold user)
-          $(_bold user)@host$ $(_green sudo "$_cmd") ... # default: $(_bold user)
-          $(_red  root)@host# $(_green "$_cmd") ...      # default: $(_red  root)
+          user@host$ $_cmd ...      # default: user
+          user@host$ sudo $_cmd ... # default: user
+          root@host# $_cmd ...      # default: root
 
-  $(_opt -q)
+  -q
       Be quiet, don't show benchmark output.
 
-  $(_opt -h)
+  -h
       This help message.
 
-  $(_bold SCRIPT)
+  SCRIPT
       The benchmark script to invoke.
 EOF
 )
