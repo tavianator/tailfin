@@ -18,7 +18,7 @@ UNAME=$(uname)
 _help() (
     _cmd=$(basename -- "$0")
     cat <<EOF
-Usage: $_cmd [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT
+Usage: $_cmd [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT [ARGS...]
 
   -d DIR
       Set the directory for results and logs (default: ./results).  The current
@@ -43,6 +43,9 @@ Usage: $_cmd [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT
 
   SCRIPT
       The benchmark script to invoke.
+
+  ARGS
+      Arguments to pass to the benchmark script.
 EOF
 )
 
@@ -86,12 +89,12 @@ if [ -z "$_user" ] && [ -n "${SUDO_USER:-}" ]; then
     _user="$SUDO_USER"
 fi
 
-shift $((OPTIND - 1))
-if (($# != 1)); then
+if ((OPTIND > $#)); then
     _help >&2
     exit $EX_USAGE
 fi
-_script="$1"
+_script="${!OPTIND}"
+shift $OPTIND
 
 ## Utility functions
 
@@ -279,8 +282,8 @@ cpu_freq_max() {
 ## If we invoked ourselves with -x, directly run the script's bench() function
 
 if [ "$_bench" ]; then
-    . "$_script"
-    bench
+    . "$_script" "$@"
+    bench "$@"
     exit $?
 fi
 
@@ -315,7 +318,7 @@ _asuser touch "$_dir/info"
 
 ## Load and run the script
 
-. "$_script"
+. "$_script" "$@"
 
 if ! is_function bench; then
     _die $EX_DATAERR '%s does not define the function bench()' "$_script"
@@ -326,11 +329,11 @@ _atexit_out=$(realpath "$_dir/teardown/stdout")
 _atexit_err=$(realpath "$_dir/teardown/stderr")
 
 if is_function setup; then
-    _redirect "$_dir"/setup/std{out,err} setup
+    _redirect "$_dir"/setup/std{out,err} setup "$@"
 fi
 
 for _run in $(seq -w "$_runs"); do
     _rundir="$_dir/runs/$_run"
     _asuser mkdir -p "$_rundir"
-    _redirect "$_rundir"/std{out,err} _asuser "$0" -x -- "$_script"
+    _redirect "$_rundir"/std{out,err} _asuser "$0" -x -- "$_script" "$@"
 done
