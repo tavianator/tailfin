@@ -108,41 +108,57 @@ is_function() {
     test "$(type -t "$1")" = function
 }
 
+# Log a message
+_log() {
+    printf '%s: ' "$0"
+    printf "$@"
+    printf '\n'
+}
+
 # Exit with an error and message
 _die() {
     _exit="$1"
-    shift 1
-    {
-        printf '%s: ' "$0"
-        printf "$@"
-        printf '\n'
-    } >&2
+    shift
+    _log "$@" >&2
     exit "$_exit"
 }
 
+# Underline some text
+_underline() {
+    _str="$*"
+    printf '%s\n' "$_str"
+    printf '%*s\n\n' ${#_str} "" | tr ' ' '='
+}
+
+# Delineate an execution phase
+_phase() {
+    printf '\n'
+    _underline "$(_log "$@")"
+}
+
 # Run a command as $_user
-_asuser() {
+as_user() {
     if [ "$_user" ]; then
-        sudo -u "$_user" -- "$@"
+        sudo -Eu "$_user" -- "$@"
     else
         "$@"
     fi
 }
 
-# Redirect standard output/error to a log file
+# Redirect standard output/error to log files
 _redirect() {
-    _out="$1"
-    _err="$2"
-    shift 2
+    _out="$1/stdout"
+    _err="$1/stderr"
+    shift
 
     # Don't make the logs owned by root
-    _asuser touch "$_out"
-    _asuser touch "$_err"
+    as_user touch "$_out"
+    as_user touch "$_err"
 
     if [ "$_quiet" ]; then
-        "$@" >"$_out" 2>"$_err"
+        "$@" >>"$_out" 2>>"$_err"
     else
-        "$@" > >(tee "$_out") 2> >(tee "$_err" >&2)
+        "$@" > >(tee -a "$_out") 2> >(tee -a "$_err" >&2)
     fi
 }
 
@@ -159,14 +175,13 @@ atexit() {
     fi
 }
 
-# Paths to which to redirect the atexit handlers' output
-_atexit_out=
-_atexit_err=
+# Directory to store the atexit handlers' logs
+_atexit_dir=
 
 # Run the registered exit handlers
 _run_atexit() {
-    if [ "$_atexit_out" ] && [ "$_atexit_err" ]; then
-        _redirect "$_atexit_out" "$_atexit_err" exec
+    if [ "$_atexit_dir" ]; then
+        _redirect "$_atexit_dir" exec
     fi
 
     # Run the handlers in the reverse order of installation
@@ -282,7 +297,7 @@ cpu_freq_max() {
 ## If we invoked ourselves with -x, directly run the script's bench() function
 
 if [ "$_bench" ]; then
-    . "$_script" "$@"
+    source "$_script" "$@"
     bench "$@"
     exit $?
 fi
@@ -295,45 +310,55 @@ if [ -e "$_dir" ]; then
     _die $EX_CANTCREAT '"%s" already exists' "$_dir"
 fi
 
-_asuser mkdir -p "$_dir"/{setup,teardown}
+_init="$_dir/init"
+_setup="$_dir/setup"
+_teardown="$_dir/teardown"
+as_user mkdir -p "$_init" "$_setup" "$_teardown"
 
 ## Describe this benchmarking run
 
-_asuser touch "$_dir/info"
-{
-    printf '%s\n\n' "${_args[*]}"
+_info() {
+    _underline "$(printf '%s\n' "${_args[*]}")"
 
     printf 'uname: '
     uname -a
     printf 'uptime: '
     uptime
-    printf 'path: %s\n' "$PWD"
+    printf 'cwd: %s\n' "$PWD"
     printf 'runs: %s\n' "$_runs"
     printf 'user: %s\n' "$_user"
-    printf 'quiet: %s\n\n' "$_quiet"
+    printf 'quiet: %s\n' "$_quiet"
+    printf 'script: %s\n' "$_script"
+}
+_redirect "$_init" _info
 
-    printf 'env:\n'
-    env
-} >"$_dir/info"
+as_user touch "$_init/env"
+env >"$_init/env"
 
 ## Load and run the script
 
-. "$_script" "$@"
+# Make the EXIT trap output to the teardown log
+_atexit_dir=$(realpath "$_teardown")
+
+_redirect "$_init" _phase 'Loading "%s" ...' "$_script"
+_redirect "$_init" source "$_script" "$@"
 
 if ! is_function bench; then
     _die $EX_DATAERR '%s does not define the function bench()' "$_script"
 fi
 
-# Make the EXIT trap output to the teardown log
-_atexit_out=$(realpath "$_dir/teardown/stdout")
-_atexit_err=$(realpath "$_dir/teardown/stderr")
-
 if is_function setup; then
-    _redirect "$_dir"/setup/std{out,err} setup "$@"
+    export REPRO_DIR="$_setup"
+    _redirect "$REPRO_DIR" _phase 'Running setup() ...'
+    _redirect "$REPRO_DIR" setup "$@"
 fi
 
 for _run in $(seq -w "$_runs"); do
-    _rundir="$_dir/runs/$_run"
-    _asuser mkdir -p "$_rundir"
-    _redirect "$_rundir"/std{out,err} _asuser "$0" -x -- "$_script" "$@"
+    _redirect "$REPRO_DIR" _phase 'Running bench(), iteration %s ...' "$_run"
+
+    export REPRO_DIR="$_dir/runs/$_run"
+    as_user mkdir -p "$REPRO_DIR"
+    _redirect "$REPRO_DIR" as_user "$0" -x -- "$_script" "$@"
 done
+
+_redirect "$_teardown" _phase 'Tearing down ...'
