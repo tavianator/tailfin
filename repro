@@ -162,6 +162,15 @@ _redirect() {
     fi
 }
 
+# Quote a command safely for eval
+_quote() {
+    printf '%q' "$1"
+    shift
+    if (($# > 0)); then
+        printf ' %q' "$@"
+    fi
+}
+
 _atexit_cmds=()
 
 # Register a command to run when the script exits
@@ -169,7 +178,7 @@ atexit() {
     # Check if the EXIT trap is set, since atexit won't work otherwise
     trap -- KILL
     if trap -p EXIT | grep _run_atexit &>/dev/null; then
-        _atexit_cmds+=("$(printf '%q ' "$@")")
+        _atexit_cmds+=("$(_quote "$@")")
     else
         _die $EX_SOFTWARE 'atexit used from subshell'
     fi
@@ -188,7 +197,7 @@ _run_atexit() {
     while ((${#_atexit_cmds[@]} > 0)); do
         _cmd="${_atexit_cmds[-1]}"
         unset '_atexit_cmds[-1]'
-        eval "$_cmd"
+        eval "$_cmd" || _log 'atexit command "%s" failed with status %d' "$_cmd" $? >&2
     done
 }
 
