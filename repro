@@ -16,9 +16,11 @@ UNAME=$(uname)
 ## Command line parsing
 
 _help() (
-    _cmd=$(basename -- "$0")
+    local cmd
+    cmd=$(basename -- "$0")
+
     cat <<EOF
-Usage: $_cmd [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT [ARGS...]
+Usage: $cmd [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT [ARGS...]
 
   -d DIR
       Set the directory for results and logs (default: ./results).  The current
@@ -29,11 +31,11 @@ Usage: $_cmd [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT [ARGS...]
 
   -u USER
       Run the benchmark as this user.  The default depends on the user who
-      invoked $_cmd:
+      invoked $cmd:
 
-          user@host$ $_cmd ...      # default: user
-          user@host$ sudo $_cmd ... # default: user
-          root@host# $_cmd ...      # default: root
+          user@host$ $cmd ...      # default: user
+          user@host$ sudo $cmd ... # default: user
+          root@host# $cmd ...      # default: root
 
   -q
       Be quiet, don't show benchmark output.
@@ -117,17 +119,17 @@ _log() {
 
 # Exit with an error and message
 _die() {
-    _exit="$1"
+    local exit="$1"
     shift
     _log "$@" >&2
-    exit "$_exit"
+    exit "$exit"
 }
 
 # Underline some text
 _underline() {
-    _str="$*"
-    printf '%s\n' "$_str"
-    printf '%*s\n\n' ${#_str} "" | tr ' ' '='
+    local str="$*"
+    printf '%s\n' "$str"
+    printf '%*s\n\n' ${#str} "" | tr ' ' '='
 }
 
 # Delineate an execution phase
@@ -147,18 +149,18 @@ as_user() {
 
 # Redirect standard output/error to log files
 _redirect() {
-    _out="$1/stdout"
-    _err="$1/stderr"
+    local out="$1/stdout"
+    local err="$1/stderr"
     shift
 
     # Don't make the logs owned by root
-    as_user touch "$_out"
-    as_user touch "$_err"
+    as_user touch "$out"
+    as_user touch "$err"
 
     if [ "$_quiet" ]; then
-        "$@" >>"$_out" 2>>"$_err"
+        "$@" >>"$out" 2>>"$err"
     else
-        "$@" > >(tee -a "$_out") 2> >(tee -a "$_err" >&2)
+        "$@" > >(tee -a "$out") 2> >(tee -a "$err" >&2)
     fi
 }
 
@@ -195,9 +197,9 @@ _run_atexit() {
 
     # Run the handlers in the reverse order of installation
     while ((${#_atexit_cmds[@]} > 0)); do
-        _cmd="${_atexit_cmds[-1]}"
+        local cmd="${_atexit_cmds[-1]}"
         unset '_atexit_cmds[-1]'
-        eval "$_cmd" || _log 'atexit command "%s" failed with status %d' "$_cmd" $? >&2
+        eval "$cmd" || _log 'atexit command "%s" failed with status %d' "$cmd" $? >&2
     done
 }
 
@@ -205,18 +207,21 @@ trap _run_atexit EXIT
 
 # Get a list of sysctls matching a glob pattern
 get_sysctls() {
-    for _ctl in $(sysctl -aN); do
-        if [[ "$_ctl" == $1 ]]; then
-            printf '%s\n' "$_ctl"
+    local ctl
+    for ctl in $(sysctl -aN); do
+        if [[ "$ctl" == $1 ]]; then
+            printf '%s\n' "$ctl"
         fi
     done
 }
 
 # Set a sysctl for the duration of a benchmark
 set_sysctl() {
-    _prev=$(sysctl -n "$1")
+    local prev
+    prev=$(sysctl -n "$1")
+
     sysctl "$1=$2"
-    atexit sysctl "$1=$_prev"
+    atexit sysctl "$1=$prev"
 }
 
 # Helper to write a string to a sysfs file
@@ -227,9 +232,11 @@ _sysfs() {
 
 # Set a sysfs value for the duration of a benchmark
 set_sysfs() {
-    _prev=$(cat "$1")
-    _sysfs "$1" "$_prev" "$2"
-    atexit _sysfs "$1" "$2" "$_prev"
+    local prev
+    prev=$(cat "$1")
+
+    _sysfs "$1" "$prev" "$2"
+    atexit _sysfs "$1" "$2" "$prev"
 }
 
 # Exit with an unsupported platform error
@@ -241,9 +248,9 @@ _idkhowto() {
 turbo_off() {
     case "$UNAME" in
         Linux)
-            _intel_turbo=/sys/devices/system/cpu/intel_pstate/no_turbo
-            if [ -e "$_intel_turbo" ]; then
-                set_sysfs "$_intel_turbo" 1
+            local intel_turbo=/sys/devices/system/cpu/intel_pstate/no_turbo
+            if [ -e "$intel_turbo" ]; then
+                set_sysfs "$intel_turbo" 1
             else
                 set_sysfs /sys/devices/system/cpu/cpufreq/boost 0
             fi
@@ -264,8 +271,9 @@ smt_off() {
             ;;
 
         FreeBSD)
-            _threads=$(sysctl -n kern.smp.threads_per_core)
-            if [ "$_threads" -eq 1 ]; then
+            local threads
+            threads=$(sysctl -n kern.smp.threads_per_core)
+            if [ "$threads" -eq 1 ]; then
                 return
             fi
             ;;
@@ -279,25 +287,27 @@ cpu_freq_max() {
     case "$UNAME" in
         Linux)
             # Set the CPU governor to performance
-            for _cpu in /sys/devices/system/cpu/cpu[0-9]*; do
-                _online="$_cpu/online"
-                if [ -e "$_online" ] && [ "$(cat "$_online")" != 1 ]; then
+            local cpu
+            for cpu in /sys/devices/system/cpu/cpu[0-9]*; do
+                local online="$cpu/online"
+                if [ -e "$online" ] && [ "$(cat "$online")" != 1 ]; then
                     continue
                 fi
 
-                _governor="$_cpu/cpufreq/scaling_governor"
-                if [ ! -e "$_governor" ]; then
+                local governor="$cpu/cpufreq/scaling_governor"
+                if [ ! -e "$governor" ]; then
                     continue
                 fi
-                set_sysfs "$_governor" performance
+                set_sysfs "$governor" performance
             done
             ;;
 
         FreeBSD)
             # Set the Intel Energy/Performance Preference to 0 (performance)
             # See intel_pstate(4)
-            for _ctl in $(get_sysctls 'dev.hwpstate_intel.*.epp'); do
-                set_sysctl "$_ctl" 0
+            local ctl
+            for ctl in $(get_sysctls 'dev.hwpstate_intel.*.epp'); do
+                set_sysctl "$ctl" 0
             done
             ;;
     esac
