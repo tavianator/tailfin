@@ -60,17 +60,17 @@ if ! is-function bench; then
 fi
 
 if is-function setup; then
-    export REPRO_DIR="$_setup"
-    _redirect "$REPRO_DIR" _phase 'Running setup() ...'
-    _redirect "$REPRO_DIR" setup "$@"
+    export SETUP_DIR="$_setup"
+    _redirect "$SETUP_DIR" _phase 'Running setup() ...'
+    _redirect "$SETUP_DIR" setup "$@"
 fi
 
 for _run in $(seq -w "$_runs"); do
-    _redirect "$REPRO_DIR" _phase 'Running bench(), iteration %s ...' "$_run"
+    export BENCH_DIR="$_dir/runs/$_run"
+    as-user mkdir -p "$BENCH_DIR"
 
-    export REPRO_DIR="$_dir/runs/$_run"
-    as-user mkdir -p "$REPRO_DIR"
-    _redirect "$REPRO_DIR" as-user "$0" -x -- "$_script" "$@"
+    _redirect "$BENCH_DIR" _phase 'Running bench(), iteration %s ...' "$_run"
+    _redirect "$BENCH_DIR" as-user "$0" -x -- "$_script" "$@"
 done
 
 _redirect "$_teardown" _phase 'Tearing down ...'

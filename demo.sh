@@ -1,4 +1,4 @@
-#!/usr/bin/env repro
+#!/usr/bin/env tailfin
 
 setup() {
     # The code in the setup() function runs once before the benchmarks start
@@ -11,9 +11,9 @@ setup() {
     # To pass a variable from setup() to bench(), export it to the environment
     export SIZE=$((4 * 1024 * 1024 * 1024))
 
-    # repro comes with a few built-in commands to set common configurations.
+    # tailfin comes with a few built-in commands to set common configurations.
     # Uncomment one or more of the lines below to test their effect on benchmark
-    # stability.  (You will probably have to run repro with sudo once you do.)
+    # stability.  (You will probably have to run tailfin with sudo once you do.)
 
     #turbo-off	# Disable "turbo boost"
     #smt-off	# Disable SMT (hyperthreading)
@@ -36,5 +36,5 @@ bench() {
         wrapper="time"
     fi
 
-    head -c$SIZE /dev/zero | pin-to-cpus "$(ls-cpus fast)" $wrapper sha256sum
+    head -c$SIZE /dev/zero | $wrapper sha256sum
 }
