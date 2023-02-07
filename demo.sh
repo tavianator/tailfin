@@ -1,37 +1,40 @@
-#!/usr/bin/env bash
+#!/usr/bin/env repro
 
 setup() {
     # The code in the setup() function runs once before the benchmarks start
     echo "Hello from setup()"
+    echo
 
-    # To run a command after the benchmarks finish, use atexit:
-    atexit echo "Goodbye from setup()"
+    # To run a command after the benchmarks finish, use at-exit:
+    at-exit echo "Goodbye from setup()"
 
-    # If you make a system-wide change in setup(), it's a good idea to
-    # immediately register a command to undo it.  That way even if a later
-    # command fails, the change will still be undone.
+    # To pass a variable from setup() to bench(), export it to the environment
+    export SIZE=$((4 * 1024 * 1024 * 1024))
 
     # repro comes with a few built-in commands to set common configurations.
-    # This command sets CPU frequency scaling to "performance" mode:
-    #cpu_freq_max
+    # Uncomment one or more of the lines below to test their effect on benchmark
+    # stability.  (You will probably have to run repro with sudo once you do.)
 
-    # Other possibilities include disabling "turbo boost":
-    #turbo_off
-
-    # or turning off SMT (hyperthreading):
-    #smt_off
+    #turbo-off	# Disable "turbo boost"
+    #smt-off	# Disable SMT (hyperthreading)
+    #max-freq	# Set CPU frequency scaling to "performance" mode
 }
 
 bench() {
     echo "Hello from bench()"
+    echo
 
-    if is_command perf; then
+    # Exported variables from setup() are visible here
+    echo "SIZE: $SIZE"
+    echo
+
+    if is-command perf; then
         wrapper="perf stat"
-    elif is_command pmc; then
+    elif is-command pmc; then
         wrapper="pmc stat"
     else
         wrapper="time"
     fi
 
-    dd if=/dev/zero bs=1M count=4k | $wrapper sha256sum
+    head -c$SIZE /dev/zero | pin-to-cpus "$(ls-cpus fast)" $wrapper sha256sum
 }
