@@ -8,7 +8,7 @@
 if [ "$_bench" ]; then
     # shellcheck source=./demo.sh
     source "$_script" "$@"
-    bench "$@"
+    (bench "$@")
     exit $?
 fi
 
