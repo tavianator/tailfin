@@ -3,7 +3,6 @@
 # Copyright © Tavian Barnes <tavianator@tavianator.com>
 # SPDX-License-Identifier: 0BSD
 
-
 ## If we invoked ourselves with -x, directly run the script's bench() function
 
 if [ "$_bench" ]; then
@@ -16,7 +15,6 @@ fi
 ## Set up the working directory
 
 _dir="$_dir/$(date '+%Y/%m/%d/%T')"
-
 if [ -e "$_dir" ]; then
     _die $EX_CANTCREAT '"%s" already exists' "$_dir"
 fi
@@ -25,6 +23,11 @@ _init="$_dir/init"
 _setup="$_dir/setup"
 _teardown="$_dir/teardown"
 as-user mkdir -p "$_init" "$_setup" "$_teardown"
+
+## Make the EXIT trap output to the teardown log
+
+_before_exit _phase 'Tearing down ...'
+_before_exit _redirect "$(realpath -- "$_teardown")" exec
 
 ## Describe this benchmarking run
 
@@ -50,9 +53,6 @@ env >"$_init/env"
 
 ## Load and run the script
 
-# Make the EXIT trap output to the teardown log
-_atexit_logs=$(realpath -- "$_teardown")
-
 _redirect "$_init" _phase 'Loading "%s" ...' "$_script"
 _redirect "$_init" source "$_script" "$@"
 
@@ -73,5 +73,3 @@ for _run in $(seq -w "$_runs"); do
     _redirect "$BENCH_DIR" _phase 'Running bench(), iteration %s ...' "$_run"
     _redirect "$BENCH_DIR" as-user "$0" -x -- "$_script" "$@"
 done
-
-_redirect "$_teardown" _phase 'Tearing down ...'

@@ -30,7 +30,7 @@ _stub smt-off   "turn off SMT"
 _stub max-freq  "set CPUs to their maximum frequency"
 
 # Load the platform-specific implementations
-_impl="$(dirname -- "$0")/platform/$UNAME.sh"
+_impl="$_TOP/platform/$UNAME.sh"
 if [ -e "$_impl" ]; then
     # shellcheck source=./platform/Linux.sh
     source "$_impl"

@@ -20,7 +20,6 @@
 #     _some_var=...
 #     _some_fn() { ... }
 
-
 ## Constants
 
 # sysexits(3)
@@ -70,11 +69,18 @@ _warn() {
     _log "warning: $format" "$@" >&2
 }
 
+# Log an error
+_err() {
+    local format="$1"
+    shift
+    _log "error: $format" "$@" >&2
+}
+
 # Exit with an error and message
 _die() {
     local exit="$1"
     shift
-    _log "$@" >&2
+    _err "$@" >&2
     exit "$exit"
 }
 
@@ -179,37 +185,51 @@ as-user() {
 #     set-sysctl vm.overcommit_memory 2
 
 # The array of commands for the EXIT handler to run:
-_atexit_cmds=()
+_exit_cmds=()
+# Commands to run before the regular at-exit commands
+_before_exit_cmds=()
 
-# A directory to store the EXIT handler's logs
-_atexit_logs=
-
-# Run the registered at-exit handlers
-_atexit_handler() {
-    if [ "$_atexit_logs" ]; then
-        _redirect "$_atexit_logs" exec
-    fi
+# Run commands from an array
+_run_handlers() {
+    local -n cmds="$1"
 
     # Run the handlers in the reverse order of installation
-    while ((${#_atexit_cmds[@]} > 0)); do
-        local cmd="${_atexit_cmds[-1]}"
-        unset '_atexit_cmds[-1]'
-        # shellcheck disable=SC2016
-        eval "$cmd" || _warn 'at-exit command `%s` failed with status %d' "$cmd" $?
+    while ((${#cmds[@]} > 0)); do
+        local cmd="${cmds[-1]}"
+        unset 'cmds[-1]'
+        eval "$cmd" || _err 'at-exit command `%s` failed with status %d' "$cmd" $?
     done
 }
 
-trap _atexit_handler EXIT
+# Run the registered at-exit handlers
+_exit_handler() {
+    _run_handlers _before_exit_cmds
+    _run_handlers _exit_cmds
+}
+
+trap _exit_handler EXIT
+
+# Add a command to an array
+_add_handler() {
+    # Check if the EXIT trap is set, since at-exit won't work otherwise
+    trap -- KILL
+    if ! trap -p EXIT | grep -q _exit_handler; then
+        _abort "at-exit called without an EXIT handler (are we in a subshell?)"
+    fi
+
+    local -n cmds="$1"
+    shift
+    cmds+=("$(_quote "$@")")
+}
 
 # Register a command to run when the script exits
 at-exit() {
-    # Check if the EXIT trap is set, since at-exit won't work otherwise
-    trap -- KILL
-    if trap -p EXIT | grep _atexit_handler &>/dev/null; then
-        _atexit_cmds+=("$(_quote "$@")")
-    else
-        _abort "at-exit called without an EXIT handler (are we in a subshell?)"
-    fi
+    _add_handler _exit_cmds "$@"
+}
+
+# Register a command to before other at-exit commands
+_before_exit() {
+    _add_handler _before_exit_cmds "$@"
 }
 
 # Get a list of sysctls matching a glob pattern
