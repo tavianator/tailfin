@@ -32,6 +32,7 @@ _stub max-freq  "set CPUs to their maximum frequency"
 # Load the platform-specific implementations
 _impl="$(dirname -- "$0")/platform/$UNAME.sh"
 if [ -e "$_impl" ]; then
+    # shellcheck source=./platform/Linux.sh
     source "$_impl"
 else
     _warn 'No platform implementation found for %s' "$UNAME"

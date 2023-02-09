@@ -58,6 +58,7 @@ _join() {
 # Log a message
 _log() {
     printf '%s: ' "$_CMD"
+    # shellcheck disable=SC2059
     printf "$@"
     printf '\n'
 }
@@ -193,6 +194,7 @@ _atexit_handler() {
     while ((${#_atexit_cmds[@]} > 0)); do
         local cmd="${_atexit_cmds[-1]}"
         unset '_atexit_cmds[-1]'
+        # shellcheck disable=SC2016
         eval "$cmd" || _warn 'at-exit command `%s` failed with status %d' "$cmd" $?
     done
 }
@@ -214,6 +216,7 @@ at-exit() {
 ls-sysctls() {
     local ctl
     for ctl in $(sysctl -aN); do
+        # shellcheck disable=SC2053
         if [[ "$ctl" == $1 ]]; then
             printf '%s\n' "$ctl"
         fi

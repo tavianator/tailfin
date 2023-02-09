@@ -36,5 +36,5 @@ bench() {
         wrapper="time"
     fi
 
-    head -c$SIZE /dev/zero | $wrapper sha256sum
+    head -c"$SIZE" /dev/zero | $wrapper sha256sum
 }

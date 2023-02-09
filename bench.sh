@@ -7,6 +7,7 @@
 ## If we invoked ourselves with -x, directly run the script's bench() function
 
 if [ "$_bench" ]; then
+    # shellcheck source=./demo.sh
     source "$_script" "$@"
     bench "$@"
     exit $?
