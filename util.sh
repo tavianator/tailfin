@@ -126,7 +126,7 @@ _redirect() {
     as-user touch "$out"
     as-user touch "$err"
 
-    if [ "$_quiet" ]; then
+    if ((_quiet)); then
         "$@" >>"$out" 2>>"$err"
     else
         "$@" > >(tee -ai "$out") 2> >(tee -ai "$err" >&2)

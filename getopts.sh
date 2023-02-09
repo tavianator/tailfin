@@ -42,8 +42,8 @@ _args=("$0" "$@")
 _dir=./results
 _runs=1
 _user=
-_quiet=
-_bench=
+_quiet=0
+_bench=0
 
 while getopts 'd:r:u:qxh' opt; do
     case "$opt" in
