@@ -18,9 +18,12 @@ _stub() {
 }
 
 _stub ls-cpus     "list CPUs"
+_stub pin-to-cpus "pin a command to particular CPUs"
 _stub is-cpu-on   "check if a CPU is online"
 _stub cpu-off     "turn off a CPU"
-_stub pin-to-cpus "pin a command to particular CPUs"
+
+_stub ls-nodes     "list NUMA nodes"
+_stub pin-to-nodes "pin a command to particular NUMA nodes"
 
 _stub turbo-off "turn off turbo boost"
 _stub smt-off   "turn off SMT"

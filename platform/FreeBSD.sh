@@ -13,7 +13,23 @@ ls-cpus() {
                 | sed 's/, */\n/g'
             ;;
 
-        core)
+        node)
+            cpuset -d "$2" -g | sed 's/.*: //; s/, */\n/g'
+            ;;
+
+        same-node)
+            local node
+            node=$(sysctl -n dev.cpu."$2".%domain 2>/dev/null || printf 0)
+            ls-cpus node "$node"
+            ;;
+
+        same-core)
+            sysctl -n kern.sched.topology_spec \
+                | xmllint --xpath '//group[flags/flag[@name="SMT"]]/cpu/text()' - \
+                | sed -n "/\<$2\>/s/, */\n/gp"
+            ;;
+
+        one-per-core)
             sysctl -n kern.sched.topology_spec \
                 | xmllint --xpath '//group[flags/flag[@name="SMT"]]/cpu/text()' - \
                 | sed 's/,.*//'
@@ -30,9 +46,23 @@ is-cpu-on() {
 }
 
 pin-to-cpus() {
-    local cpus="$1"
+    local cpus
+    read -ar cpus <<<"$1"
     shift
-    cpuset -l "$(_join ',' $cpus)" -- "$@"
+    cpuset -l "$(_join ',' "${cpus[@]}")" -- "$@"
+}
+
+ls-nodes() {
+    local nodes
+    nodes=$(sysctl -n vm.ndomains)
+    seq 0 $((nodes - 1))
+}
+
+pin-to-nodes() {
+    local nodes
+    read -ar nodes <<<"$1"
+    shift
+    cpuset -n "$(_join ',' "${nodes[@]}")" -- "$@"
 }
 
 smt-off() {

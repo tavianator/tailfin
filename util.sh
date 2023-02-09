@@ -95,6 +95,20 @@ _phase() {
     _underline "$(_log "$@")"
 }
 
+# Get the first path that refers to an existing file
+_first_file() {
+    for file; do
+        if [ -e "$file" ]; then
+            printf '%s' "$file"
+            return
+        fi
+    done
+
+    # If none of the files exist, use the first one so that error messages
+    # refer to the preferred name
+    printf '%s' "$1"
+}
+
 # Redirect standard output/error to log files
 _redirect() {
     local out="$1/stdout"
