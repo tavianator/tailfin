@@ -47,13 +47,6 @@ _CMD=$(basename -- "$0")
 
 ## Utility functions
 
-# Join parameters with a custom separator
-_join() {
-    local IFS="$1"
-    shift
-    printf '%s' "$*"
-}
-
 # Log a message
 _log() {
     printf '%s: ' "$_CMD"
@@ -140,6 +133,43 @@ _quote() {
     if (($# > 0)); then
         printf ' %q' "$@"
     fi
+}
+
+# Expand '2,4-6,8' into '2 4 5 6 8'
+_explode() {
+    awk -F, '{
+        space = "";
+        for (i = 1; i <= NF; ++i) {
+            n = split($i, x, /-/);
+            start = x[1];
+            end = (n > 1) ? x[2] : start;
+            for (j = start; j <= end; ++j) {
+                printf "%s%d", space, j;
+                space = " ";
+            }
+        }
+    }'
+}
+
+# Undo _explode
+_implode() {
+    #tr '\n' ' ' | awk '{ OFS=","; $1 = $1; print $0 }'}
+    tr '\n' ' ' | awk '{
+        comma = "";
+        for (i = 1; i <= NF; ++i) {
+            start = $i;
+            while (i < NF && $(i + 1) == $i + 1) {
+                ++i;
+            }
+            end = $i;
+            if (start == end) {
+                printf "%s%d", comma, start;
+            } else {
+                printf "%s%d-%d", comma, start, end;
+            }
+            comma = ",";
+        }
+    }'
 }
 
 # Check if a command exists

@@ -3,38 +3,24 @@
 # Copyright © Tavian Barnes <tavianator@tavianator.com>
 # SPDX-License-Identifier: 0BSD
 
-# Expand a list like 0,2-3,6-8 into 0 2 3 6 7 8
-_split() {
-    awk -F, '{
-        for (i = 1; i <= NF; ++i) {
-            n = split($i, x, /-/);
-            start = x[1];
-            end = (n > 1) ? x[2] : start;
-            for (j = start; j <= end; ++j) {
-                print j;
-            }
-        }
-    }'
-}
-
 ls-cpus() {
     local which="${1:-online}"
 
     case "$which" in
         all)
-            _split </sys/devices/system/cpu/present
+            _explode </sys/devices/system/cpu/present
             ;;
 
         online)
-            _split </sys/devices/system/cpu/online
+            _explode </sys/devices/system/cpu/online
             ;;
 
         node)
-            _split </sys/devices/system/node/node"$2"/cpulist
+            _explode </sys/devices/system/node/node"$2"/cpulist
             ;;
 
         same-node)
-            _split </sys/devices/system/cpu/cpu"$2"/node*/cpulist
+            _explode </sys/devices/system/cpu/cpu"$2"/node*/cpulist
             ;;
 
         same-core)
@@ -42,7 +28,7 @@ ls-cpus() {
             # and https://www.kernel.org/doc/Documentation/cputopology.txt
             local file
             file=$(_first_file /sys/devices/system/cpu/cpu"$2"/topology/{core_cpus,thread_siblings}_list)
-            _split <"$file"
+            _explode <"$file"
             ;;
 
         one-per-core)
@@ -81,10 +67,9 @@ ls-cpus() {
 }
 
 pin-to-cpus() {
-    local cpus
-    read -ar cpus <<<"$1"
+    local cpus=$(_implode <<< "$1")
     shift
-    taskset -c "$(_join ',' "${cpus[@]}")" "$@"
+    taskset -c "$cpus" "$@"
 }
 
 is-cpu-on() {
@@ -103,11 +88,11 @@ ls-nodes() {
 
     case "$which" in
         all)
-            _split </sys/devices/system/node/present
+            _explode </sys/devices/system/node/present
             ;;
 
         online)
-            _split </sys/devices/system/node/online
+            _explode </sys/devices/system/node/online
             ;;
 
         *)
@@ -117,11 +102,8 @@ ls-nodes() {
 }
 
 pin-to-nodes() {
-    local array
-    read -ra array <<< "$1"
+    local cpus=$(_nodes <<< "$1")
     shift
-
-    nodes=$(_join ',' "${array[@]}")
     numactl -m "$nodes" -N "$nodes" -- "$@"
 }
 

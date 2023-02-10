@@ -46,10 +46,9 @@ is-cpu-on() {
 }
 
 pin-to-cpus() {
-    local cpus
-    read -ar cpus <<<"$1"
+    local cpus=$(_implode <<< "$1")
     shift
-    cpuset -l "$(_join ',' "${cpus[@]}")" -- "$@"
+    cpuset -l "$cpus" -- "$@"
 }
 
 ls-nodes() {
@@ -59,10 +58,9 @@ ls-nodes() {
 }
 
 pin-to-nodes() {
-    local nodes
-    read -ar nodes <<<"$1"
+    local nodes=$(_implode <<< "$1")
     shift
-    cpuset -n "$(_join ',' "${nodes[@]}")" -- "$@"
+    cpuset -n "$nodes" -- "$@"
 }
 
 smt-off() {
