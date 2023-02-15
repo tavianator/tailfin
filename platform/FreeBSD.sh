@@ -80,3 +80,11 @@ max-freq() {
         set-sysctl "$ctl" 0
     done
 }
+
+aslr-off() {
+    # See https://wiki.freebsd.org/AddressSpaceLayoutRandomization
+    local ctl
+    for ctl in kern.elf{32,64}.aslr.{,pie_}enable; do
+        set-sysctl "$ctl" 0
+    done
+}

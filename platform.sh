@@ -28,6 +28,7 @@ _stub pin-to-nodes "pin a command to particular NUMA nodes"
 _stub turbo-off "turn off turbo boost"
 _stub smt-off   "turn off SMT"
 _stub max-freq  "set CPUs to their maximum frequency"
+_stub aslr-off  "turn off ASLR"
 
 # Load the platform-specific implementations
 _impl="$_TOP/platform/$UNAME.sh"
