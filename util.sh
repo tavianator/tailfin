@@ -91,8 +91,8 @@ _underline() {
 
 # Delineate an execution phase
 _phase() {
-    printf '\n'
-    _underline "$(_log "$@")"
+    printf '\n' >&2
+    _underline "$(_log "$@")" >&2
 }
 
 # Get the first path that refers to an existing file

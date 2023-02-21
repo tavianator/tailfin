@@ -34,15 +34,16 @@ _before_exit _redirect "$(realpath -- "$_teardown")" exec
 _info() {
     _underline "$(printf '%s\n' "${_args[*]}")"
 
-    printf 'uname: '
+    printf 'uname:   '
     uname -a
     printf 'uptime: '
     uptime
-    printf 'cwd: %s\n' "$PWD"
-    printf 'runs: %s\n' "$_runs"
-    printf 'user: %s\n' "$_user"
-    printf 'quiet: %s\n' "$_quiet"
-    printf 'script: %s\n' "$_script"
+    printf 'cwd:     %s\n' "$PWD"
+    printf 'results: %s\n' "$(realpath -- "$_dir")"
+    printf 'runs:    %s\n' "$_runs"
+    printf 'user:    %s\n' "$_user"
+    printf 'quiet:   %s\n' "$_quiet"
+    printf 'script:  %s\n' "$_script"
 }
 
 _redirect "$_init" _info
