@@ -67,7 +67,8 @@ ls-cpus() {
 }
 
 pin-to-cpus() {
-    local cpus=$(_implode <<< "$1")
+    local cpus
+    cpus=$(_implode <<< "$1")
     shift
     taskset -c "$cpus" "$@"
 }
@@ -102,7 +103,8 @@ ls-nodes() {
 }
 
 pin-to-nodes() {
-    local cpus=$(_nodes <<< "$1")
+    local nodes
+    nodes=$(_implode <<< "$1")
     shift
     numactl -m "$nodes" -N "$nodes" -- "$@"
 }
