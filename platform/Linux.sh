@@ -35,8 +35,10 @@ ls-cpus() {
             local cpu
             for cpu in $(ls-cpus); do
                 # Print the CPU if it's the first of its siblings
-                if [ "$(_smt_siblings "$cpu" | head -n1)" = "$cpu" ]; then
-                    printf '%d\n' "$cpu"
+                local siblings
+                siblings=($(ls-cpus same-core "$cpu"))
+                if ((cpu == siblings[0])); then
+                    printf '%d ' "$cpu"
                 fi
             done
             ;;
@@ -55,7 +57,7 @@ ls-cpus() {
             for cpu in $(ls-cpus); do
                 freq=$(cat /sys/devices/system/cpu/cpu"$cpu"/cpufreq/cpuinfo_max_freq)
                 if ((freq == max)); then
-                    printf '%d\n' "$cpu"
+                    printf '%d ' "$cpu"
                 fi
             done
             ;;
@@ -89,7 +91,7 @@ ls-nodes() {
 
     case "$which" in
         all)
-            _explode </sys/devices/system/node/present
+            _explode </sys/devices/system/node/possible
             ;;
 
         online)
@@ -135,9 +137,9 @@ smt-off() {
 
     # But sometimes, we need to manually offline each sibling thread
     local cpu
-    for cpu in $(ls-cpus core); do
+    for cpu in $(ls-cpus one-per-core); do
         local sibling
-        for sibling in $(_smt_siblings "$cpu"); do
+        for sibling in $(ls-cpus same-core "$cpu"); do
             if ((sibling != cpu)); then
                 cpu-off "$sibling"
             fi

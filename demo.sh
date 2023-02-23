@@ -1,5 +1,8 @@
 #!/usr/bin/env tailfin
 
+# Copyright © Tavian Barnes <tavianator@tavianator.com>
+# SPDX-License-Identifier: 0BSD
+
 setup() {
     # The code in the setup() function runs once before the benchmarks start
     echo "Hello from setup()"

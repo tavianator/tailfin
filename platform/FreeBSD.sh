@@ -10,11 +10,11 @@ ls-cpus() {
         all|online)
             sysctl -n kern.sched.topology_spec \
                 | xmllint --xpath 'groups/group/cpu/text()' - \
-                | sed 's/, */\n/g'
+                | sed 's/, */ /g'
             ;;
 
         node)
-            cpuset -d "$2" -g | sed 's/.*: //; s/, */\n/g'
+            cpuset -d "$2" -g | sed 's/.*: //; s/, */ /g'
             ;;
 
         same-node)
@@ -26,7 +26,7 @@ ls-cpus() {
         same-core)
             sysctl -n kern.sched.topology_spec \
                 | xmllint --xpath '//group[flags/flag[@name="SMT"]]/cpu/text()' - \
-                | sed -n "/\<$2\>/s/, */\n/gp"
+                | sed -n "/\<$2\>/s/, */ /gp"
             ;;
 
         one-per-core)
