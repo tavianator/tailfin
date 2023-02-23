@@ -158,6 +158,20 @@ max-freq() {
             set-sysfs "$governor" performance
         fi
 
+        # Set the minimum frequency to the maximum sustainable frequency
+        local max=
+        local available="$dir/cpufreq/scaling_available_frequencies"
+        local info
+        info=$(_first_file "$dir"/cpufreq/{base_frequency,cpuinfo_max_freq})
+        if [ -e "$available" ]; then
+            max=$(awk '{ print $1 }' <"$available")
+        elif [ -e "$info" ]; then
+            max=$(cat "$info")
+        fi
+        if [ "$max" ]; then
+            set-sysfs "$dir/cpufreq/scaling_min_freq" "$max"
+        fi
+
         local epp="$dir/cpufreq/energy_performance_preference"
         local epb="$dir/power/energy_perf_bias"
         if [ -e "$epp" ]; then
