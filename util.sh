@@ -111,13 +111,19 @@ _first_file() {
 
 # Redirect standard output/error to log files
 _redirect() {
-    local out="$1/stdout"
-    local err="$1/stderr"
+    local dir="$1"
     shift
 
+    if [ -z "$dir" ]; then
+        "$@"
+        return $?
+    fi
+
+    local out="$dir/stdout"
+    local err="$dir/stderr"
+
     # Don't make the logs owned by root
-    as-user touch "$out"
-    as-user touch "$err"
+    as-user touch "$out" "$err"
 
     if ((_quiet)); then
         "$@" >>"$out" 2>>"$err"

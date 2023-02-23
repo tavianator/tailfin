@@ -5,13 +5,16 @@
 
 ## Command line parsing
 
-_help() (
+_help() {
     cat <<EOF
-Usage: $_CMD [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT [ARGS...]
+Usage: $_CMD [-d DIR | -n] [-r RUNS] [-u USER] [-q] [-h] SCRIPT [ARGS...]
 
   -d DIR
       Set the directory for results and logs (default: ./results).  The current
       date and time will be appended to this path to distinguish runs.
+
+  -n
+      Don't save benchmark logs
 
   -r RUNS
       Run the benchmark this many times (default: 1).
@@ -36,7 +39,13 @@ Usage: $_CMD [-d DIR] [-r RUNS] [-u USER] [-q] [-h] SCRIPT [ARGS...]
   ARGS
       Arguments to pass to the benchmark script.
 EOF
-)
+}
+
+_usage() {
+    _err "$@"
+    _help >&2
+    exit $EX_USAGE
+}
 
 _args=("$0" "$@")
 _dir=./results
@@ -45,10 +54,13 @@ _user=
 _quiet=0
 _bench=0
 
-while getopts 'd:r:u:qxh' opt; do
+while getopts 'd:nr:u:qxh' opt; do
     case "$opt" in
         d)
             _dir="$OPTARG"
+            ;;
+        n)
+            _dir=
             ;;
         r)
             _runs="$OPTARG"
@@ -73,14 +85,17 @@ while getopts 'd:r:u:qxh' opt; do
     esac
 done
 
+if [ -z "$_dir" ] && ((_quiet)); then
+    _usage "-n and -q cannot be combined"
+fi
+
 # The default user is the current user, before sudo if used
 if [ -z "$_user" ] && [ -n "${SUDO_USER:-}" ]; then
     _user="$SUDO_USER"
 fi
 
 if ((OPTIND > $#)); then
-    _help >&2
-    exit $EX_USAGE
+    _usage "No script specified"
 fi
 _script="${!OPTIND}"
 shift $OPTIND
