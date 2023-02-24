@@ -17,7 +17,7 @@ _bench() {
 
 # Describe a benchmarking run
 _info() {
-    _underline "$(printf '%s\n' "${_args[*]}")"
+    _underline "${_args[*]}" >&2
 
     printf 'uname:   '
     uname -a
@@ -37,26 +37,27 @@ _run() {
     shift
 
     # Set up the working directory
-    local results= init= setup= teardown=
+    local results
     if [ "$_dir" ]; then
         results="$_dir/$(date '+%Y/%m/%d/%T')"
         if [ -e "$results" ]; then
             _die $EX_CANTCREAT '"%s" already exists' "$results"
         fi
-
-        init="$results/init"
-        setup="$results/setup"
-        teardown="$results/teardown"
-        as-user mkdir -p "$init" "$setup" "$teardown"
-
-        # In case the benchmark cd's
-        teardown=$(realpath -- "$teardown")
+    else
+        results=$(mktemp -d)
+        at-exit rm -r "$results"
     fi
+
+    init="$results/init"
+    setup="$results/setup"
+    teardown="$results/teardown"
+    as-user mkdir -p "$init" "$setup" "$teardown"
 
     # Make the EXIT trap output to the teardown log
     _before_exit _phase 'Tearing down ...'
-    _before_exit _redirect "$teardown" exec
+    _before_exit _redirect "$(realpath -- "$teardown")" exec
 
+    # Describe the benchmarking run
     _redirect "$init" _info
 
     # Save the complete environment
@@ -65,8 +66,7 @@ _run() {
         env >"$init/env"
     fi
 
-    ## Load and run the script
-
+    # Load and run the script
     _redirect "$init" _phase 'Loading "%s" ...' "$script"
     _redirect "$init" source "$script" "$@"
 
@@ -80,14 +80,12 @@ _run() {
         _redirect "$SETUP_DIR" setup "$@"
     fi
 
-    for _run in $(seq -w "$_runs"); do
-        export BENCH_DIR=
-        if [ "$results" ]; then
-            BENCH_DIR="$results/runs/$_run"
-            as-user mkdir -p "$BENCH_DIR"
-        fi
+    local run
+    for run in $(seq -w "$_runs"); do
+        export BENCH_DIR="$results/runs/$run"
+        as-user mkdir -p "$BENCH_DIR"
 
-        _redirect "$BENCH_DIR" _phase 'Running bench(), iteration %s ...' "$_run"
+        _redirect "$BENCH_DIR" _phase 'Running bench(), iteration %s ...' "$run"
         _redirect "$BENCH_DIR" as-user "$0" _bench "$script" "$@"
     done
 }
