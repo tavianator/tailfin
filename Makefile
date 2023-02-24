@@ -3,6 +3,6 @@
 
 check:
 	shellcheck -a ./tailfin
-	./tailfin -n check.sh
+	./tailfin -n run check.sh
 
 .PHONY: check

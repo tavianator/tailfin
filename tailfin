@@ -11,6 +11,7 @@ _TOP=$(dirname -- "$0")
 
 # Load the implementation
 source "$_TOP/util.sh"
-source "$_TOP/getopts.sh"
 source "$_TOP/platform.sh"
-source "$_TOP/bench.sh"
+source "$_TOP/results.sh"
+source "$_TOP/run.sh"
+source "$_TOP/getopts.sh"

@@ -17,6 +17,9 @@ check-on() {
 }
 
 setup() {
+    echo "SETUP_DIR: $SETUP_DIR"
+    echo
+
     check ls-cpus
     check ls-cpus all
     check ls-cpus online
@@ -51,6 +54,8 @@ setup() {
 }
 
 bench() {
+    echo "BENCH_DIR: $BENCH_DIR"
+
     [[ $EXPORTED == exported ]]
     [[ ${UNEXPORTED:-} == "" ]]
 }
