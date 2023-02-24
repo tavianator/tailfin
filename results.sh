@@ -20,9 +20,7 @@ _ls_results() {
 
 # tailfin latest
 _latest() {
-    if (($#)); then
-        _usage "Unexpected arguments '%s'" "$*"
-    fi
+    _getargs 0 -- "$@"
 
     local dirs=("$_dir"/????/??/??/??:??:??)
     if [ ! -e "${dirs[0]}" ]; then
@@ -35,11 +33,8 @@ _latest() {
 # tailfin view
 _view() {
     local result
-    if (($# > 0)); then
-        result="$1"
-    else
-        result=$(_latest)
-    fi
+    _getargs 0 result -- "$@"
+    : "${result=$(_latest)}"
 
     if [ ! -d "$result" ]; then
         _die $EX_NOINPUT "No results found in %s" "$result"
@@ -50,19 +45,11 @@ _view() {
 
 # tailfin save
 _save() {
-    if (($# >= 1)); then
-        local target="$_dir/saved/$1"
-    else
-        _usage "Missing name for saved run"
-    fi
+    local name run
+    _getargs 1 name run -- "$@"
+    : "${run=$(_latest)}"
 
-    local run
-    if (($# >= 2)); then
-        run="$2"
-    else
-        run=$(_latest)
-    fi
-
+    local target="$_dir/saved/$name"
     if [ -e "$target" ]; then
         _die $EX_CANTCREAT "'%s' already exists" "$target"
     fi
@@ -74,6 +61,8 @@ _save() {
 
 # tailfin clean
 _clean() {
+    _getargs 0 -- "$@"
+
     local dirs=("$_dir"/????/??/??/??:??:??)
     if [ -e "${dirs[0]}" ]; then
         rm -rI "${dirs[@]}"

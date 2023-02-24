@@ -56,6 +56,7 @@ Options:
 EOF
 }
 
+# Print an error, help text, and exit
 _usage() {
     _err "$@"
     echo >&2
@@ -63,7 +64,37 @@ _usage() {
     exit $EX_USAGE
 }
 
-_args=("$0" "$@")
+# Parse positional parameters
+_getargs() {
+    local min="$1"
+    shift
+
+    local args=()
+    until [ "$1" = "--" ]; do
+        args+=("$1")
+        shift
+    done
+    shift
+
+    if (($# < min)); then
+        _usage "Expected %d arguments, got %d (%s)" "$min" $# "$*"
+    fi
+
+    local arg
+    for arg in "${args[@]}"; do
+        if (($#)); then
+            local -n ref="$arg"
+            ref="$1"
+            shift
+        fi
+    done
+
+    if (($#)); then
+        _usage "%d unexpected arguments (%s)" $# "$*"
+    fi
+}
+
+_args=("${@:0}")
 _dir=./results
 _runs=1
 _user=
