@@ -40,7 +40,15 @@ _view() {
         _die $EX_NOINPUT "No results found in %s" "$result"
     fi
 
-    find "$result" -type f -print0 | vifm -c 'view!' -
+    local pager="${PAGER:-less}"
+    if is-command fzf; then
+        find "$result" -type f -print0 | fzf --read0 --preview "cat {}" >/dev/null
+    elif is-command vifm; then
+        find "$result" -type f -print0 | vifm -c 'view!' -
+    else
+        # shellcheck disable=SC2086
+        find "$result" -type f -exec $pager {} +
+    fi
 }
 
 # tailfin save
