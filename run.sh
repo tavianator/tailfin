@@ -48,14 +48,21 @@ _run() {
         at-exit rm -r "$results"
     fi
 
-    init="$results/init"
-    setup="$results/setup"
-    teardown="$results/teardown"
+    local init="$results/init"
+    local setup="$results/setup"
+    local teardown="$results/teardown"
     as-user mkdir -p "$init" "$setup" "$teardown"
 
     # Make the EXIT trap output to the teardown log
+    teardown=$(realpath -- "$teardown")
+    at-exit eval '_reap "$_logjob" || :'
+    _before_exit _bg _logjob _logtail "$teardown/syslog"
     _before_exit _phase 'Tearing down ...'
-    _before_exit _redirect "$(realpath -- "$teardown")" exec
+    _before_exit _redirect "$teardown" exec
+
+    # Save system logs separately for each phase
+    local logjob
+    _bg logjob _logtail "$init/syslog"
 
     # Describe the benchmarking run
     _redirect "$init" _info
@@ -70,14 +77,21 @@ _run() {
     _redirect "$init" _phase 'Loading "%s" ...' "$script"
     _redirect "$init" source "$script" "$@"
 
+    _reap "$logjob" || :
+
     if ! is-function bench; then
         _die $EX_DATAERR '%s does not define the function bench()' "$script"
     fi
 
     if is-function setup; then
         export SETUP_DIR="$setup"
+
+        _bg logjob _logtail "$SETUP_DIR/syslog"
+
         _redirect "$SETUP_DIR" _phase 'Running setup() ...'
         _redirect "$SETUP_DIR" setup "$@"
+
+        _reap "$logjob" || :
     fi
 
     local run
@@ -85,7 +99,11 @@ _run() {
         export BENCH_DIR="$results/runs/$run"
         as-user mkdir -p "$BENCH_DIR"
 
+        _bg logjob _logtail "$BENCH_DIR/syslog"
+
         _redirect "$BENCH_DIR" _phase 'Running bench(), iteration %s ...' "$run"
         _redirect "$BENCH_DIR" as-user "$0" _bench "$script" "$@"
+
+        _reap "$logjob" || :
     done
 }

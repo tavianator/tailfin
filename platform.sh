@@ -17,6 +17,8 @@ _stub() {
     eval "$fn() { _idkhowto $(_quote "$@"); }"
 }
 
+_stub _logtail "save system logs"
+
 _stub ls-cpus     "list CPUs"
 _stub pin-to-cpus "pin a command to particular CPUs"
 _stub is-cpu-on   "check if a CPU is online"

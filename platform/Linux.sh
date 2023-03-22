@@ -3,6 +3,16 @@
 # Copyright © Tavian Barnes <tavianator@tavianator.com>
 # SPDX-License-Identifier: 0BSD
 
+_logtail() {
+    as-user touch "$1"
+
+    if is-command journalctl; then
+        journalctl -fn0 >"$1" 2>&1
+    else
+        tail -Fn0 /var/log/messages >"$1"
+    fi
+}
+
 ls-cpus() {
     local which="${1:-online}"
 

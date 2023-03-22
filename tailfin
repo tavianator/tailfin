@@ -3,8 +3,7 @@
 # Copyright © Tavian Barnes <tavianator@tavianator.com>
 # SPDX-License-Identifier: 0BSD
 
-# Exit early on errors (-e) and undefined variables (-u)
-set -eu
+set -eum
 
 # Get the directory that contains this script
 _TOP=$(dirname -- "$0")

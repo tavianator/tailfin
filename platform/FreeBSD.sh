@@ -3,6 +3,11 @@
 # Copyright © Tavian Barnes <tavianator@tavianator.com>
 # SPDX-License-Identifier: 0BSD
 
+_logtail() {
+    as-user touch "$1"
+    tail -Fn0 /var/log/messages >"$1"
+}
+
 ls-cpus() {
     local which="${1:-online}"
 

@@ -314,3 +314,32 @@ set-sysfs() {
     _write_sysfs "$1" "$prev" "$2"
     at-exit _undo_sysfs "$1" "$prev" "$2"
 }
+
+## Background jobs
+
+# Start a background job and store its ID
+_bg() {
+    local -n ref="$1"
+    shift
+
+    # Use eval so the job gets a nice name
+    eval "$(_quote "$@") &"
+
+    # Save the job ID
+    ref=$(jobs %% | sed -E 's/.*\[([0-9]+)\].*/%\1/g')
+}
+
+# Kill and wait for a background job
+_reap() {
+    kill "$@"
+    wait "$@" 2>/dev/null
+}
+
+# Kill and wait for all background jobs
+_reapall() {
+    while kill %% 2>/dev/null; do
+        wait %% || :
+    done
+}
+
+at-exit _reapall
