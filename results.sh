@@ -15,7 +15,9 @@ _ls_results() {
         fi
     done
 
-    ls -d "$@" "${dirs[@]}"
+    if ((${#dirs[@]})); then
+        ls -d "$@" "${dirs[@]}"
+    fi
 }
 
 # tailfin latest
