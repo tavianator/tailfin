@@ -133,6 +133,7 @@ if ((OPTIND > $#)); then
 fi
 _subcmd="${!OPTIND}"
 shift $OPTIND
+unset OPTIND OPTARG
 
 if [ -z "$_dir" ] && ((_quiet)); then
     _usage "-n and -q cannot be combined"

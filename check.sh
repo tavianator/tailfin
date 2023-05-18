@@ -49,6 +49,10 @@ setup() {
         echo "Not running as root, skipping stabilizer tests"
     fi
 
+    # Make sure getopts state is not leaked
+    [[ ${OPTIND-unset} == "unset" ]]
+    [[ ${OPTARG-unset} == "unset" ]]
+
     export EXPORTED=exported
     UNEXPORTED=unexported
 }
