@@ -184,7 +184,7 @@ is-function() {
 # Run a command as the target user (-u or $SUDO_USER)
 as-user() {
     if [ "$_user" ]; then
-        sudo -Eu "$_user" -- "$@"
+        sudo -EHu "$_user" -- "$@"
     else
         "$@"
     fi

@@ -41,6 +41,11 @@ setup() {
 
     echo
     if ((UID == 0)); then
+        if [[ $_user ]]; then
+            UHOME=$(as-user bash -c 'printf %s "$HOME"')
+            [[ "$UHOME" != "$HOME" ]]
+        fi
+
         check-on Linux smt-off
         check-on Linux turbo-off
         check-on Linux max-freq
