@@ -44,7 +44,7 @@ _run() {
             _die $EX_CANTCREAT '"%s" already exists' "$results"
         fi
     else
-        results=$(mktemp -d)
+        results=$(as-user mktemp -d)
         at-exit rm -r "$results"
     fi
 
