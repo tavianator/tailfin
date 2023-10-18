@@ -45,7 +45,7 @@ _run() {
         fi
     else
         results=$(as-user mktemp -d)
-        at-exit rm -r "$results"
+        defer rm -r "$results"
     fi
 
     local init="$results/init"
@@ -55,10 +55,10 @@ _run() {
 
     # Make the EXIT trap output to the teardown log
     teardown=$(realpath -- "$teardown")
-    at-exit eval '_reap "$_logjob" || :'
-    _before_exit _bg _logjob _logtail "$teardown/syslog"
-    _before_exit _phase 'Tearing down ...'
-    _before_exit _redirect "$teardown" exec
+    defer eval '_reap "$_logjob" || :'
+    _early_defer _bg _logjob _logtail "$teardown/syslog"
+    _early_defer _phase 'Tearing down ...'
+    _early_defer _redirect "$teardown" exec
 
     # Save system logs separately for each phase
     local logjob

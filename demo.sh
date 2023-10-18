@@ -8,8 +8,8 @@ setup() {
     echo "Hello from setup()"
     echo
 
-    # To run a command after the benchmarks finish, use at-exit:
-    at-exit echo "Goodbye from setup()"
+    # To run a command after the benchmarks finish, use defer:
+    defer echo "Goodbye from setup()"
 
     # To pass a variable from setup() to bench(), export it to the environment
     export SIZE=$((4 * 1024 * 1024 * 1024))

@@ -199,14 +199,14 @@ as-user() {
 # for the EXIT trap.  This is still just best-effort, but it's much better than
 # only cleaning up after a successful run.
 #
-# The low-level primitive we expose is the at-exit function:
+# The low-level primitive we expose is the defer function:
 #
 #     # Get the current overcommit setting
 #     saved=$(sysctl -n vm.overcommit_memory)
 #     # Disable overcommit:
 #     sysctl vm.overcommit_memory=2
 #     # Re-enable it at exit:
-#     at-exit sysctl vm.overcommit_memory=$saved
+#     defer sysctl vm.overcommit_memory=$saved
 #
 # We also provide higher-level helpers that are often more convenient:
 #
@@ -214,36 +214,36 @@ as-user() {
 #     set-sysctl vm.overcommit_memory 2
 
 # The array of commands for the EXIT handler to run:
-_exit_cmds=()
-# Commands to run before the regular at-exit commands
-_before_exit_cmds=()
+_deferred=()
+# Commands to run before the regular deferred commands
+_early_deferred=()
 
-# Run commands from an array
-_run_handlers() {
+# Run deferred commands from an array
+_run_deferred() {
     local -n cmds="$1"
 
     # Run the handlers in the reverse order of installation
     while ((${#cmds[@]} > 0)); do
         local cmd="${cmds[-1]}"
         unset 'cmds[-1]'
-        eval "$cmd" || _err 'at-exit command `%s` failed with status %d' "$cmd" $?
+        eval "$cmd" || _err 'deferred command `%s` failed with status %d' "$cmd" $?
     done
 }
 
-# Run the registered at-exit handlers
+# Run the deferred commands
 _exit_handler() {
-    _run_handlers _before_exit_cmds
-    _run_handlers _exit_cmds
+    _run_deferred _early_deferred
+    _run_deferred _deferred
 }
 
 trap _exit_handler EXIT
 
-# Add a command to an array
-_add_handler() {
-    # Check if the EXIT trap is set, since at-exit won't work otherwise
+# Add a deferred command to an array
+_add_defer() {
+    # Check if the EXIT trap is set, since defer won't work otherwise
     trap -- KILL
     if ! trap -p EXIT | grep -q _exit_handler; then
-        _abort "at-exit called without an EXIT handler (are we in a subshell?)"
+        _abort "defer called without an EXIT handler (are we in a subshell?)"
     fi
 
     local -n cmds="$1"
@@ -252,13 +252,13 @@ _add_handler() {
 }
 
 # Register a command to run when the script exits
-at-exit() {
-    _add_handler _exit_cmds "$@"
+defer() {
+    _add_defer _deferred "$@"
 }
 
-# Register a command to before other at-exit commands
-_before_exit() {
-    _add_handler _before_exit_cmds "$@"
+# Register a command to before other deferred commands
+_early_defer() {
+    _add_defer _early_deferred "$@"
 }
 
 # Get a list of sysctls matching a glob pattern
@@ -278,7 +278,7 @@ set-sysctl() {
     prev=$(sysctl -n "$1")
 
     sysctl "$1=$2" >&2
-    at-exit sysctl "$1=$prev" >&2
+    defer sysctl "$1=$prev" >&2
 }
 
 # Helper to write a string to a sysfs file
@@ -312,7 +312,7 @@ set-sysfs() {
     fi
 
     _write_sysfs "$1" "$prev" "$2"
-    at-exit _undo_sysfs "$1" "$prev" "$2"
+    defer _undo_sysfs "$1" "$prev" "$2"
 }
 
 ## Background jobs
@@ -342,4 +342,4 @@ _reapall() {
     done
 }
 
-at-exit _reapall
+defer _reapall
